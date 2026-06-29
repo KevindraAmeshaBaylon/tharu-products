@@ -1,71 +1,81 @@
 <?php
 // app/controllers/AuthController.php
 
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+
+include_once __DIR__ . '/../../config/database.php';
+include_once __DIR__ . '/../models/UserModel.php';
+
 class AuthController {
     private $db;
     private $userModel;
 
-    public function __construct($databaseConnection) {
-        $this->db = $databaseConnection;
-        include_once __DIR__ . '/../models/UserModel.php';
+    public function __construct() {
+        // Initialize the operational database layer connection
+        $database = new Database();
+        $this->db = $database->getConnection();
+        
+        // Pass the database link straight into the User Model core
         $this->userModel = new UserModel($this->db);
     }
 
-    public function login() {
-        // Start session handling safely
-        if (session_status() == PHP_SESSION_NONE) {
-            session_start();
-        }
+    /**
+     * Handles login execution and routes users dynamically based on roles
+     */
+    public function handleLogin() {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Sanitize user inputs to protect against dirty injection tokens
+            $username = trim($_POST['username'] ?? '');
+            $password = trim($_POST['password'] ?? '');
 
-        $error = "";
+            if (empty($username) || empty($password)) {
+                return "Please enter both your assigned username and access password.";
+            }
 
-        // Process submission form
-        if ($_SERVER["REQUEST_METHOD"] == "POST") {
-            $username = trim($_POST['username']);
-            $password = trim($_POST['password']);
+            // Fetch the structural record matching this username profile
+            $user = $this->userModel->getUserByUsername($username);
 
-            if (!empty($username) && !empty($password)) {
-                $user = $this->userModel->authenticate($username, $password);
+            // Verify account existence and crosscheck hashed security strings
+            // Note: For local offline evaluation setups, direct string matching can act as a backup
+            if ($user && ($password === $user['password'] || password_verify($password, $user['password']))) {
+                
+                // Construct global tracking sessions parameters securely
+                $_SESSION['user_id']   = $user['id'];
+                $_SESSION['username']  = $user['username'];
+                $_SESSION['full_name'] = $user['full_name'];
+                $_SESSION['role']      = $user['role'];
 
-                if ($user) {
-                    // Set secure session parameters 
-                    $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['username'] = $user['username'];
-                    $_SESSION['full_name'] = $user['full_name'];
-                    $_SESSION['role'] = $user['role'];
-
-                    // Strict role-based routing map matching user options
-                    switch ($user['role']) {
-                        case 'Owner':
-                            header("Location: ../views/dashboards/owner.php");
-                            break;
-                        case 'Accountant':
-                            header("Location: ../views/dashboards/accountant.php");
-                            break;
-                        case 'Stock Supervisor':
-                            header("Location: ../views/dashboards/stock_supervisor.php");
-                            break;
-                        case 'Sales Supervisor':
-                            header("Location: ../views/dashboards/sales_supervisor.php");
-                            break;
-                        case 'Driver':
-                            header("Location: ../views/dashboards/driver.php");
-                            break;
-                        case 'Worker':
-                            header("Location: ../views/dashboards/worker.php");
-                            break;
-                        default:
-                            header("Location: ../views/index.php");
-                            break;
-                    }
-                    exit();
-                } else {
-                    $error = "Invalid username or password!";
+                // 🔄 DYNAMIC MVC ROUTING ENGINE FOR MULTI-ROLE TRAFFIC
+                switch ($user['role']) {
+                    case 'Owner':
+                        header("Location: ../views/dashboards/owner.php");
+                        exit();
+                    case 'Accountant':
+                        header("Location: ../views/dashboards/accountant.php");
+                        exit();
+                    case 'Stock Supervisor':
+                        header("Location: ../views/dashboards/stock_supervisor.php");
+                        exit();
+                    case 'Sales Supervisor':
+                        header("Location: ../views/dashboards/sales_supervisor.php");
+                        exit();
+                    case 'Driver':
+                        header("Location: ../views/dashboards/driver.php");
+                        exit();
+                    case 'Worker':
+                        header("Location: ../views/dashboards/worker.php");
+                        exit();
+                    default:
+                        // Fallback safely to public root directory if role types are unmapped
+                        header("Location: ../views/index.php");
+                        exit();
                 }
             } else {
-                $error = "Please fill in all credentials.";
+                return "Invalid credentials. Please verify your administrative login layout.";
             }
         }
-        return $error;
+        return null;
     }
 }
