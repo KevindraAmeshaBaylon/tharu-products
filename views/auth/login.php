@@ -5,7 +5,7 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
-// Redirect shortcut: If the user already has a valid session role active, push them straight inside
+// Redirect shortcut: If already logged in, route directly from the auth subfolder
 if (isset($_SESSION['role'])) {
     switch ($_SESSION['role']) {
         case 'Owner': header("Location: ../dashboards/owner.php"); exit();
@@ -17,11 +17,13 @@ if (isset($_SESSION['role'])) {
     }
 }
 
+// Go up two folders to leave 'auth' and 'views', then reach 'app/'
 include_once __DIR__ . '/../../app/controllers/AuthController.php';
 
 $authController = new AuthController();
 $errorMessage = $authController->handleLogin();
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
